@@ -1,72 +1,52 @@
-class Resources
+class Start
 {
-    constructor() {
-        this.resourceCache = {};
-        this.loading = [];
-        this.readyCallbacks = [];
-    }
- 
-    load(urlOrArr) {
-        if(urlOrArr instanceof Array) {
-            urlOrArr.forEach((url) => {
-                this._load(url);
+    constructor(canvas, urlArr) {
+        this.canvas = canvas;
+        this.urlCache = {};
+        urlArr.forEach((url) => {
+                this.load(url);
             });
-        }
-        else {
-            this._load(urlOrArr);
-        }
     }
 
-    _load(url) {
-        if(this.resourceCache[url]) {
-            return this.resourceCache[url];
-        }
-        else {
-            let img = new Image();
-            img.onload = () => {
-                this.resourceCache[url] = img;
-                
-                if(this.isReady()) {
-                    this.readyCallbacks.forEach((game) => { new game(this, document.getElementById('canvas')); });
-                }
-            };
-            this.resourceCache[url] = false;
-            img.src = url;
-        }
+    load(url) {
+        let img = new Image();
+        img.onload = () => {
+            this.urlCache[url] = img;          
+            if(this.isReady()) {
+                new Game(this, 
+                        new Player(this.canvas.width/2-60, this.canvas.height-100, 102, 83, this.get('img/ship.png'), 200),
+                        new Attack(50));
+            }
+        };
+        this.urlCache[url] = false;
+        img.src = url;
     }
 
     get(url) {
-        return this.resourceCache[url];
+        return this.urlCache[url];
     }
 
     isReady() {
         let ready = true;
-        for(let k in this.resourceCache) {
-            if(this.resourceCache.hasOwnProperty(k) &&
-               !this.resourceCache[k]) {
+        for(let k in this.urlCache) {
+            if(this.urlCache.hasOwnProperty(k) &&
+               !this.urlCache[k]) {
                 ready = false;
             }
         }
         return ready;
     }
-
-    onReady(obj) {
-        this.readyCallbacks.push(obj);
-    }
 }
 
 class Game
 {
-    constructor(resources, canvas) {
-        this.canvas = canvas;
-        this.resources = resources;
-        this.ctx = canvas.getContext('2d');
+    constructor(resources, ...entities) {
+        this.ctx = resources.canvas.getContext('2d');
+        this.resources = resources; 
         this.terrainPattern = this.ctx.createPattern(this.resources.get('img/starfield.png'), 'repeat');
-        this.world = new Set();
+        this.world = new Set(entities);
+        this.cache = new Set();
         this._last = 0;
-        this.count = 0;
-        this.world.add(new Player(this.canvas.width/2-60, this.canvas.height-100, 102, 83, this.resources.get('img/ship.png'), 200));
-        this.world.add(new Attack(50));
         this.lastObjShot = false;
         this._step = (now) => {
             this._loop = requestAnimationFrame(this._step);
@@ -80,33 +60,28 @@ class Game
 
     update() {
         for (let entity of this.world) if (entity.update) entity.update(this);
+        for (let entity of this.cache) {
+            this.world.delete(entity);
+            this.cache.delete(entity);
+        }
     }
 
     render() {
         this.ctx.fillStyle = this.terrainPattern;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillRect(0, 0, this.resources.canvas.width, this.resources.canvas.height);
         for (let entity of this.world) if (entity.render) entity.render(this);
     }
 
     collide(entity1, type) {
         for (let entity2 of this.world) {
-            if (entity1 != entity2  &&
-                entity1.x <= entity2.x + entity2.w &&
-                entity1.x + entity1.w >= entity2.x && 
-                entity1.y <= entity2.y + entity2.h &&
-                entity1.h + entity1.y >= entity2.y) 
-                {
-                    if(entity1.type == SHOT && entity2.type == SHIP)
-                    {
-                        this.world.delete(entity1);
-                        this.world.delete(entity2);
-                    }
-                    if(entity1.type == PLAYER && entity2.type == SHIP)
-                    {
-                        this.stop();
-                    }
-                }   
+            if (entity1 != entity2  && 
+                entity2.type & type && 
+                entity1.x < entity2.x + entity2.w &&
+                entity1.x + entity1.w > entity2.x &&
+                entity1.y < entity2.y + entity2.h &&
+                entity1.h + entity1.y > entity2.y) return true;
         }
+        return false;
     }
 
     stop() {
@@ -124,7 +99,7 @@ class Rect
     }
 }
 
-const PLAYER = 1, SHIP = 2, SHOT = 4;
+const PLAYER = 1, SHIP = 2, SHOT = 4, LINE = 8;
 
 class Player extends Rect
 {
@@ -146,7 +121,7 @@ class Player extends Rect
             this.delay = this.rate;
             game.world.add(new Shot(this.x+45, this.y-30, 10, 38, game.resources.get('img/bullet.png'), 300));
         }
-        game.collide(this);
+        if (game.collide(this, PLAYER | SHIP | LINE)) game.stop();
     }
 }
 
@@ -159,7 +134,7 @@ class Ship extends Rect
 
     update(game) {
         this.y += this.vel * game.delta;
-        game.collide(this);
+        if (game.collide(this, PLAYER | SHOT | LINE )) game.cache.add(this);
     }
 }
 
@@ -172,7 +147,7 @@ class Shot extends Rect
 
     update(game) {
         this.y -= this.vel * game.delta;
-        game.collide(this);
+        if (game.collide(this, SHIP | SHOT | LINE )) game.world.delete(this);
         if(this.y < 0) game.world.delete(this);
     }
 }
@@ -213,14 +188,10 @@ window.onkeyup = function(e) {
   }
 };
 
-const resources = new Resources();
+const canvas = document.getElementById('canvas');
 
-resources.load([
-    "img/bullet.png",
-    "img/enemy.png",
-    "img/ship.png",
-    "img/starfield.png"]);
-
-resources.onReady(Game);
-
-console.log('kkkkkkf');
+const start = new Start(canvas,
+                        ["img/bullet.png",
+                        "img/enemy.png",
+                        "img/ship.png",
+                        "img/starfield.png"]);
