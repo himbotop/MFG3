@@ -89,9 +89,23 @@ class Game
     }
 }
 
-class Rect
+class Draw
 {
-    constructor() {
+    constructor(options) {
+        const property = {
+            x : null,
+            y : null,
+            w : null,
+            h : null,
+            image : null,
+            vel : null
+        };
+        let length = 0;
+        for(let prop in property) {
+            property[prop] = options[length];
+            length++
+        }
+       Object.assign(this, property);
     }
 
     render(game) {
@@ -101,11 +115,11 @@ class Rect
 
 const PLAYER = 1, SHIP = 2, SHOT = 4, LINE = 8;
 
-class Player extends Rect
+class Player extends Draw
 {
-    constructor(px, py, pw, ph, img, v) {
-        super();
-        Object.assign(this, { type: PLAYER, image: img, rate: 0.2, delay: 0, x : px, y : py, w : pw, h : ph, vel : v });
+    constructor(...options) {
+        super(options);
+        Object.assign(this, { type: PLAYER, rate: 0.2, delay: 0 });
     }
 
     update(game) {
@@ -125,11 +139,11 @@ class Player extends Rect
     }
 }
 
-class Ship extends Rect
+class Ship extends Draw
 {
-    constructor(px, py, pw, ph, img, v) {
-        super();
-        Object.assign(this, { type: SHIP, image: img, x : px, y : py, w : pw, h : ph, vel : v });
+    constructor(...options) {
+        super(options);
+        Object.assign(this, { type: SHIP });
     }
 
     update(game) {
@@ -138,11 +152,11 @@ class Ship extends Rect
     }
 }
 
-class Shot extends Rect
+class Shot extends Draw
 {
-    constructor(px, py, pw, ph, img, v) {
-        super();
-        Object.assign(this, { type: SHOT, image: img, x : px, y : py, w : pw, h : ph, vel : v });
+    constructor(...options) {
+        super(options);
+        Object.assign(this, { type: SHOT });
     }
 
     update(game) {
